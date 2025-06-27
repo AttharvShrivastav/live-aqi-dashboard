@@ -27,7 +27,7 @@ To run this script locally, follow these steps:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/YOUR_USERNAME/live-aqi-dashboard.git](https://github.com/YOUR_USERNAME/live-aqi-dashboard.git)
+    git clone [https://github.com/attharvshrivastav/live-aqi-dashboard.git](https://github.com/attharvshrivastav/live-aqi-dashboard.git)
     ```
 2.  **Navigate into the project directory:**
     ```bash
