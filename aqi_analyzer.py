@@ -7,9 +7,7 @@ import os
 # --- Configuration ---
 CITY_NAME_FOR_TITLE = "Pithampur (Sector-2)"
 CITY_ID_FOR_API = "@10522"
-# The script will first try to get the API key from a GitHub Secret, 
-# then fall back to the key you provide here.
-API_KEY = os.environ.get('AQI_API_KEY', 'd71cf8a4a7136a8aa76ca5ab543c206d0ed3925d') 
+API_KEY = os.environ.get('AQI_API_KEY', 'd71cf8a4a7136a8aa76ca5ab543c206d0ed3925d')
 API_URL = f"https://api.waqi.info/feed/{CITY_ID_FOR_API}/?token={API_KEY}"
 
 # --- Data Acquisition & Processing ---
@@ -21,72 +19,108 @@ try:
 
     if data.get("status") == "ok":
         print("Data fetched successfully!")
-        
-        # --- Extract Different Data Points ---
-        # 1. Current AQI
+
+        # --- Extract Data Points ---
         current_aqi = data['data']['aqi']
-        
-        # 2. Individual Pollutant Forecasts (PM2.5)
         pm25_forecast_data = data['data']['forecast']['daily']['pm25']
         df_forecast = pd.DataFrame(pm25_forecast_data)
         df_forecast = df_forecast.rename(columns={"day": "date", "avg": "pm25"})
         df_forecast['date'] = pd.to_datetime(df_forecast['date'])
-        
-        # 3. Current Individual Pollutant Levels
         iaqi_data = data['data']['iaqi']
-        pollutants = {key: iaqi_data[key]['v'] for key in ['pm25', 'pm10', 'o3', 'no2', 'so2', 'co'] if key in iaqi_data}
+        pollutants = {key.upper(): iaqi_data[key]['v'] for key in ['pm25', 'pm10', 'o3', 'no2'] if key in iaqi_data}
         df_pollutants = pd.DataFrame(list(pollutants.items()), columns=['Pollutant', 'Value'])
 
         # --- Create Visualizations ---
         print("Creating visualizations...")
-        
-        # Figure 1: Gauge Chart for Current AQI
+
+        # Figure 1: Gauge Chart
         fig_gauge = go.Figure(go.Indicator(
-            mode = "gauge+number",
-            value = current_aqi,
-            title = {'text': f"Current AQI in {CITY_NAME_FOR_TITLE}"},
-            gauge = {
-                'axis': {'range': [0, 300]},
-                'bar': {'color': "darkblue"},
-                'steps': [
-                    {'range': [0, 50], 'color': 'green'},
-                    {'range': [51, 100], 'color': 'yellow'},
-                    {'range': [101, 150], 'color': 'orange'},
-                    {'range': [151, 200], 'color': 'red'},
-                    {'range': [201, 300], 'color': 'purple'}
-                ],
-            }
+            mode = "gauge+number", value = current_aqi,
+            title = {'text': "Current Overall AQI", 'font': {'size': 24}},
+            gauge = {'axis': {'range': [0, 300], 'tickwidth': 1, 'tickcolor': "darkblue"},
+                     'bar': {'color': "rgba(0,0,0,0)"}, # Invisible bar to show colors underneath
+                     'steps': [{'range': [0, 50], 'color': '#4CAF50'}, {'range': [51, 100], 'color': '#FFEB3B'},
+                               {'range': [101, 150], 'color': '#FF9800'}, {'range': [151, 200], 'color': '#F44336'},
+                               {'range': [201, 300], 'color': '#9C27B0'}]}
         ))
+        fig_gauge.update_layout(height=400)
 
-        # Figure 2: Bar Chart for Current Pollutant Levels
-        fig_bar = px.bar(
-            df_pollutants, 
-            x='Pollutant', 
-            y='Value',
-            title='Current Pollutant Levels',
-            template='plotly_white'
-        )
-        
-        # Figure 3: Line Chart for PM2.5 Forecast
-        fig_line = px.line(
-            df_forecast, 
-            x='date', 
-            y='pm25', 
-            title='7-Day PM2.5 Forecast',
-            template='plotly_white',
-            markers=True
-        )
 
-        # --- Combine into a single HTML file ---
-        print("Combining charts into a single HTML file...")
-        with open('index.html', 'w') as f:
-            f.write(f"<html><head><title>AQI Dashboard for {CITY_NAME_FOR_TITLE}</title></head><body>")
-            f.write(f"<h1 style='text-align:center;'>Air Quality Dashboard: {CITY_NAME_FOR_TITLE}</h1>")
-            # Convert figures to HTML and write to file
-            f.write(fig_gauge.to_html(full_html=False, include_plotlyjs='cdn'))
-            f.write(fig_bar.to_html(full_html=False, include_plotlyjs='cdn'))
-            f.write(fig_line.to_html(full_html=False, include_plotlyjs='cdn'))
-            f.write("</body></html>")
+        # Figure 2: Bar Chart
+        fig_bar = px.bar(df_pollutants, x='Pollutant', y='Value', title='Current Pollutant Levels', template='plotly_white')
+        fig_bar.update_layout(title_font_size=24)
+
+        # Figure 3: Line Chart
+        fig_line = px.line(df_forecast, x='date', y='pm25', title='7-Day PM2.5 Forecast', template='plotly_white', markers=True)
+        fig_line.update_layout(title_font_size=24)
+
+        # --- NEW: Generate HTML with Bento Grid Layout ---
+        print("Generating dashboard with Bento Grid layout...")
+
+        # Convert each figure to an HTML div
+        # We set include_plotlyjs=False because we will include it once in the head
+        chart_div_gauge = fig_gauge.to_html(full_html=False, include_plotlyjs=False)
+        chart_div_bar = fig_bar.to_html(full_html=False, include_plotlyjs=False)
+        chart_div_line = fig_line.to_html(full_html=False, include_plotlyjs=False)
+
+        # Define the HTML structure with CSS for the Bento Grid
+        html_template = f"""
+        <html>
+        <head>
+            <title>AQI Dashboard: {CITY_NAME_FOR_TITLE}</title>
+            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+                    margin: 0;
+                    padding: 0;
+                    background-color: #f0f2f5;
+                }}
+                .header {{
+                    background-color: white;
+                    padding: 20px;
+                    text-align: center;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    font-size: 2em;
+                    color: #333;
+                }}
+                .bento-grid {{
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 20px;
+                    padding: 20px;
+                    max-width: 1200px;
+                    margin: auto;
+                }}
+                .grid-item {{
+                    background-color: white;
+                    border-radius: 16px;
+                    padding: 20px;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    transition: transform 0.2s ease-in-out;
+                }}
+                .grid-item:hover {{
+                    transform: translateY(-5px);
+                }}
+                .wide {{
+                    grid-column: span 2; /* This makes the gauge chart span both columns */
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">Air Quality Dashboard: {CITY_NAME_FOR_TITLE}</div>
+            <div class="bento-grid">
+                <div class="grid-item wide">{chart_div_gauge}</div>
+                <div class="grid-item">{chart_div_bar}</div>
+                <div class="grid-item">{chart_div_line}</div>
+            </div>
+        </body>
+        </html>
+        """
+
+        # Write the final HTML to the file
+        with open('index.html', 'w', encoding='utf-8') as f:
+            f.write(html_template)
 
         print("Dashboard saved successfully as index.html!")
 
